@@ -27,9 +27,9 @@ Ce repository contient le backend de l’application, développé en Node.js ave
     ```
 4. Setup the database:
 
-- In you localhost, create a new DB pawka_dev
+- In your pgAdmin, create a new DB called `pawka_dev`
 
-- Clone .env.dist file, rename the copy to .env. Adjust the DB settings to correspond to your local configuration.
+- Clone `.env.dist file`, rename the copy to `.env`. Adjust the DB settings to correspond to your local configuration.
 
 - In this file `/src/utils/sequelize.js`, uncomment this part to recreate an empty one:
 
