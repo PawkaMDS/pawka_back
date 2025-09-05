@@ -45,3 +45,5 @@ Ce repository contient le backend de l’application, développé en Node.js ave
     ```
     npm run dev
     ```
+
+- To visualize your DB, you can install DBeaver and coonnect your local DB to it.
