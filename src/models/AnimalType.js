@@ -11,6 +11,7 @@ const AnimalType = sequelize.define(
     },
     {
         timestamps: false,
+        tableName: 'animal_types',
     }
 );
 
