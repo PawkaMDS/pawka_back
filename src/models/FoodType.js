@@ -8,6 +8,10 @@ const FoodType = sequelize.define(
             type: DataTypes.STRING,
             allowNull: false,
         },
+        default_moisture: {
+            type: DataTypes.INTEGER,
+            allowNull: false,
+        },
     },
     {
         timestamps: false,
