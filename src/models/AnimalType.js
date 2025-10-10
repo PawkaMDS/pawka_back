@@ -4,7 +4,7 @@ const sequelize = require('../utils/sequelize');
 const AnimalType = sequelize.define(
     'AnimalType',
     {
-        type: {
+        name: {
             type: DataTypes.STRING,
             allowNull: false,
         },

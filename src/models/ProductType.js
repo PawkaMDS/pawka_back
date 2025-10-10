@@ -4,7 +4,7 @@ const sequelize = require('../utils/sequelize');
 const ProductType = sequelize.define(
     'ProductType',
     {
-        type: {
+        name: {
             type: DataTypes.STRING,
             allowNull: false,
         },
