@@ -2,6 +2,7 @@ const User = require('./User')
 const AnimalType = require('./AnimalType')
 const AnimalBreed = require('./AnimalBreed')
 const Animal = require('./Animal')
+const ProductType = require('./ProductType')
 
 // Associations
 // AnimalType → AnimalBreed (1:N)
@@ -25,4 +26,5 @@ module.exports = {
 	AnimalType,
 	AnimalBreed,
     Animal,
+    ProductType,
 }
