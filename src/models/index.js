@@ -5,6 +5,7 @@ const Animal = require('./Animal')
 const ProductType = require('./ProductType')
 const Product = require('./Product')
 const FoodType = require('./FoodType')
+const SearchHistoryItem = require('./SearchHistoryItem')
 
 // Associations
 // AnimalType → AnimalBreed (1:N)
@@ -27,6 +28,14 @@ AnimalBreed.hasMany(Animal,  { foreignKey: "breed_id", as: "animals_by_breed" })
 Product.belongsTo(ProductType, { foreignKey: 'type_id', as: 'type', onDelete: 'RESTRICT', onUpdate: 'CASCADE' });
 ProductType.hasMany(Product, { foreignKey: 'type_id', as: 'products' });
 
+// SearchHistoryItem pivot (User <-> Product)
+SearchHistoryItem.belongsTo(User, { foreignKey: 'user_id', as: 'user' });
+SearchHistoryItem.belongsTo(Product, { foreignKey: 'product_id', as: 'product' });
+
+// Navigation Many-to-Many via pivot
+User.belongsToMany(Product, { through: SearchHistoryItem, foreignKey: 'user_id', otherKey: 'product_id', as: 'searched_products' });
+Product.belongsToMany(User, { through: SearchHistoryItem, foreignKey: 'product_id', otherKey: 'user_id', as: 'searching_users' });
+
 module.exports = {
 	User,
 	AnimalType,
@@ -35,4 +44,5 @@ module.exports = {
     ProductType,
     Product,
     FoodType,
+    SearchHistoryItem,
 }
