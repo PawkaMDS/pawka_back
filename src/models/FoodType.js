@@ -4,6 +4,11 @@ const sequelize = require('../utils/sequelize');
 const FoodType = sequelize.define(
     'FoodType',
     {
+        code: {
+            type: DataTypes.STRING(50),
+            allowNull: false,
+            unique: true,
+        },
         name: {
             type: DataTypes.STRING,
             allowNull: false,
@@ -16,6 +21,9 @@ const FoodType = sequelize.define(
     {
         timestamps: false,
         tableName: 'food_types',
+        indexes: [
+            { unique: true, fields: ['code'] },
+        ],
     }
 );
 
