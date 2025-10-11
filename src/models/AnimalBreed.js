@@ -8,6 +8,11 @@ const AnimalBreed = sequelize.define(
             type: DataTypes.STRING,
             allowNull: false,
         },
+        code: {
+            type: DataTypes.STRING(80),
+            allowNull: false,
+            unique: true,
+        },
         animal_type_id: {
             type: DataTypes.INTEGER,
             allowNull: false,
@@ -22,6 +27,10 @@ const AnimalBreed = sequelize.define(
     {
         timestamps: false,
         tableName: 'animal_breeds',
+        indexes: [
+            { unique: true, fields: ["code"] },
+            { unique: true, fields: ["animal_type_id", "name"] },
+        ],
     }
 );
 
