@@ -40,11 +40,11 @@ app.use((error, req, res, next) => {
     await sequelize.authenticate();
 
     // Sync the DB
-    await sequelize.sync({ alter: true });
+    // await sequelize.sync({ alter: true });
 
     // Seed the DB (if needed)
-    const seedAll = require("./src/seeds");
-    await seedAll();
+    // const seedAll = require("./src/seeds");
+    // await seedAll(sequelize);
 
     const port = Number(process.env.APP_PORT) || 8000;
     server.listen(port, () => {
