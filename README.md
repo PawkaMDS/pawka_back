@@ -31,12 +31,15 @@ Ce repository contient le backend de l’application, développé en Node.js ave
 
 - Clone `.env.dist file`, rename the copy to `.env`. Adjust the DB settings to correspond to your local configuration.
 
-- In this file `/src/utils/sequelize.js`, uncomment this part to recreate an empty one:
+- In `/index.js`, uncomment this part to recreate an empty one:
 
     ```
-    // await sequelize.sync({
-    //   alter: true,
-    // });
+    // await sequelize.sync({ alter: true });
+    ```
+    And these two to seed the DB : 
+    ```
+    // const seedAll = require("./src/seeds");
+    // await seedAll();
     ```
 
 ## Usage
