@@ -1,10 +1,13 @@
 require("dotenv").config();
-require("./src/utils/sequelize");
 require("express-async-errors");
 
 const express = require("express");
 const bodyParser = require("body-parser");
 const http = require("http");
+
+const sequelize = require("./src/utils/sequelize");
+require("./src/models");
+
 const app = express();
 const server = http.createServer(app);
 const router = express.Router();
@@ -12,25 +15,43 @@ const router = express.Router();
 app.use(bodyParser.json());
 app.use("/api", router);
 
-// add all model relations
-require('./src/models/index.js');
+// Routes/controllers
 require("./src/controllers")(app, router);
 
+// Error handling middleware
 app.use((error, req, res, next) => {
-  console.log(error.status);
+  console.log(error);
   if (error?.status) {
-    res.status(error?.status).send({
-      code: error?.code,
-      message: error?.message,
+    res.status(error.status).send({
+      code: error.code,
+      message: error.message,
     });
   } else {
     res.status(500).send({
-      code: "SERVER_ERRROR",
+      code: "SERVER_ERROR",
       message: "Internal Server Error",
     });
   }
 });
 
-app.listen(process.env.APP_PORT, () => {
-  console.log(`Api listening at http://localhost:${process.env.APP_PORT}`);
-});
+// Minimal setup to run the app
+(async () => {
+  try {
+    await sequelize.authenticate();
+
+    // Sync the DB
+    // await sequelize.sync({ alter: true });
+
+    // Seed the DB (if needed)
+    // const seedAll = require("./src/seeds");
+    // await seedAll();
+
+    const port = Number(process.env.APP_PORT) || 8000;
+    server.listen(port, () => {
+      console.log(`Api listening at http://localhost:${port}`);
+    });
+  } catch (err) {
+    console.error("Unable to start app:", err);
+    process.exit(1);
+  }
+})();
