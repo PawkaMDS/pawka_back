@@ -8,10 +8,18 @@ const ProductType = sequelize.define(
             type: DataTypes.STRING,
             allowNull: false,
         },
+        code: {
+            type: DataTypes.STRING(50),
+            allowNull: false,
+            unique: true,
+        },
     },
     {
         timestamps: false,
         tableName: 'product_types',
+        indexes: [
+            { unique: true, fields: ['code'], name: 'unique_product_type_code' },
+        ],
     }
 );
 
