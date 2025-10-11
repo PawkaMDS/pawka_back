@@ -8,6 +8,11 @@ const AnimalType = sequelize.define(
             type: DataTypes.STRING,
             allowNull: false,
         },
+        code: {
+            type: DataTypes.STRING(50),
+            allowNull: false,
+            unique: true,
+        },
     },
     {
         timestamps: false,
