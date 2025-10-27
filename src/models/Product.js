@@ -21,6 +21,10 @@ const Product = sequelize.define(
             allowNull: false,
             defaultValue: false,
         },
+        image_url: {
+            type: DataTypes.TEXT,
+            allowNull: true,
+        },
         type_id: {
             type: DataTypes.INTEGER,
             allowNull: false,
