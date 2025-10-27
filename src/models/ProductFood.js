@@ -34,9 +34,32 @@ const ProductFood = sequelize.define(
             type: DataTypes.TEXT,
             allowNull: true,
         },
-        life_stages: {
+        life_stage: {
             type: DataTypes.ENUM(['puppy', 'adult', 'senior', 'kitten']),
             allowNull: true,
+        },
+        is_for_sterilised: {
+            type: DataTypes.BOOLEAN,
+            allowNull: true,
+            defaultValue: false,
+        },
+        breed_size: {
+            type: DataTypes.ENUM(['toy', 'small', 'medium', 'large', 'giant']),
+            allowNull: true,
+        },
+        moisture_percent: {
+            type: DataTypes.DECIMAL(5,2),
+            allowNull: true,
+        },
+        fediaf_conformity: {
+            type: DataTypes.BOOLEAN,
+            allowNull: true,
+            defaultValue: false,
+        },
+        sources: {
+            type: DataTypes.TEXT,
+            allowNull: true,
+            comment: "Source(s) of product information for analysis",
         },
     },
     {
