@@ -6,6 +6,7 @@ const ProductType = require('./ProductType')
 const Product = require('./Product')
 const FoodType = require('./FoodType')
 const SearchHistoryItem = require('./SearchHistoryItem')
+const ProductFood = require('./ProductFood')
 
 // Associations
 // AnimalType → AnimalBreed (1:N)
@@ -36,6 +37,16 @@ SearchHistoryItem.belongsTo(Product, { foreignKey: 'product_id', as: 'product' }
 User.belongsToMany(Product, { through: SearchHistoryItem, foreignKey: 'user_id', otherKey: 'product_id', as: 'searched_products' });
 Product.belongsToMany(User, { through: SearchHistoryItem, foreignKey: 'product_id', otherKey: 'user_id', as: 'searching_users' });
 
+// ProductFood relations
+ProductFood.belongsTo(Product, { foreignKey: 'product_id', as: 'product' });
+Product.hasMany(ProductFood, { foreignKey: 'product_id', as: 'product_foods' });
+
+ProductFood.belongsTo(AnimalType, { foreignKey: 'animal_type_id', as: 'animal_type' });
+AnimalType.hasMany(ProductFood, { foreignKey: 'animal_type_id', as: 'product_foods' });
+
+ProductFood.belongsTo(FoodType, { foreignKey: 'food_type_id', as: 'food_type' });
+FoodType.hasMany(ProductFood, { foreignKey: 'food_type_id', as: 'product_foods' });
+
 module.exports = {
 	User,
 	AnimalType,
@@ -45,4 +56,5 @@ module.exports = {
     Product,
     FoodType,
     SearchHistoryItem,
+    ProductFood,
 }
