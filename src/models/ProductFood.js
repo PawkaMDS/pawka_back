@@ -97,6 +97,13 @@ const ProductFood = sequelize.define(
     {
         timestamps: false,
         tableName: 'product_foods',
+        indexes: [
+            {
+                unique: true,
+                fields: ['product_id'],
+                name: 'product_food_product_id_uq',
+            },
+        ],
     }
 );
 

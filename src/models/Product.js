@@ -6,7 +6,7 @@ const Product = sequelize.define(
     {
         code_ean: {
             type: DataTypes.STRING(14),
-            allowNull: true,
+            allowNull: false,
         },
         name: {
             type: DataTypes.STRING,
@@ -38,6 +38,13 @@ const Product = sequelize.define(
     },
     {
         tableName: 'products',
+        indexes: [
+            {
+                unique: true,
+                fields: ['code_ean'],
+                name: 'products_code_ean_uq',
+            },
+        ],
     }
 );
 
