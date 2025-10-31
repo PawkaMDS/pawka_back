@@ -27,6 +27,9 @@ const SearchHistoryItem = sequelize.define(
     },
     {
         tableName: 'search_history_items',
+        indexes: [
+            { unique: true, fields: ['user_id', 'product_id'] },
+        ],
     }
 );
 
