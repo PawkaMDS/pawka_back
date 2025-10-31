@@ -4,7 +4,7 @@ const AnimalType = require("../../models/AnimalType");
 const FoodType = require("../../models/FoodType");
 const ProductFood = require("../../models/ProductFood");
 
-module.exports = async function seedProducts(options = {}) {
+module.exports = async function seedPurinaOne(options = {}) {
     const tx = options.transaction;
     const productType = await ProductType.findOne({ where: { code: "food" }, transaction: tx });
     const animalType = await AnimalType.findOne({ where: { code: "cat" }, transaction: tx });
