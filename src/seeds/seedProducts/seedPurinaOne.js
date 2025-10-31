@@ -14,7 +14,7 @@ module.exports = async function seedProducts(options = {}) {
     const [productInstance] = await Product.upsert(
         {
             code_ean: EAN,
-            name: "Purina One - Croquettes pour chat",
+            name: "Purina ONE - Croquettes Chat Stérilisé Truite & Blé",
             brand: "Purina One",
             image_url: "https://images.openpetfoodfacts.org/images/products/761/303/584/5084/front_fr.16.400.jpg",
             is_verified: true,
@@ -34,6 +34,14 @@ module.exports = async function seedProducts(options = {}) {
         moisture_percent: foodType.default_moisture ?? null,
         sources: "Open Pet Food Facts (code-barres 7613035845084)",
         ingredients: "Truite (15 %) (dont tête, arête, chair), Protéines de volaille déshydratées, Blé (14 %), Farine de soja, Farine de protéines de maïs, Maïs, Gluten de blé, Graisses animales, Pulpe de betterave déshydratée, Racine de chicorée séchée (2 %), Fibres végétales déshydratées, Substances minérales, Hydrolysat (avec ajout de 0,025 % de poudre de Lactobacillus Delbrueckii et Fermentum traitée thermiquement), Levures déshydratées",
+        analytical_composition:
+        {
+            "protein_percent": 37.0,
+            "fat_percent": 13.0,
+            "fiber_percent": 4.0,
+            "ash_percent": 7.5,
+            "moisture_percent": 10
+        },
         life_stage: "adult",
         is_for_sterilised: true,
         breed_size: null,
