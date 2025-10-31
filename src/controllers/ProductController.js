@@ -153,30 +153,127 @@ module.exports = function (app, router) {
         }
     });
 
+    router.get("/products/:id", async (req, res) => {
+        try {
+            const { id } = req.params;
 
-   router.get("/products", async (req, res) => {
-  try {
-    const products = await Product.findAll({
-      attributes: ["id", "name", "brand", "image_url"],
-      include: [
-        {
-          model: ProductFood,
-          as: "product_foods",
-          attributes: ["scores"] // on récupère tout, mais on filtrera après
+            if (!id) {
+                return res.status(400).json({ error: "L'ID du produit est requis" });
+            }
+
+            const product = await Product.findOne({
+                where: { id },
+                include: [
+                    {
+                        model: ProductType,
+                        as: "type",
+                        attributes: ["id", "code", "name"],
+                    },
+                    {
+                        model: ProductFood,
+                        as: "product_foods",
+                        include: [
+                            {
+                                model: AnimalType,
+                                as: "animal_type",
+                                attributes: ["id", "code", "name"],
+                            },
+                            {
+                                model: FoodType,
+                                as: "food_type",
+                                attributes: ["id", "code", "name", "default_moisture"],
+                            },
+                        ],
+                    },
+                ],
+            });
+
+            if (!product) {
+                return res.status(404).json({ error: "Produit introuvable" });
+            }
+
+            return res.json(product);
+        } catch (error) {
+            console.error("❌ Erreur GET /products/id/:id:", error);
+            return res.status(500).json({ error: "Erreur interne lors de la récupération du produit" });
         }
-      ]
     });
 
-    // Transformation pour ne garder que pt et pct
-    const lightProducts = products.map(prod => {
-      const scoresRaw = prod.product_foods[0]?.scores || {};
-      const filteredScores = {};
 
+
+
+   /**
+     * Route GET /products
+     * Récupère tout les produits sans détails des critères.
+     */
+    router.get("/products", async (req, res) => {
+        try {
+            const { animal_type, food_type } = req.query;
+
+            const productFoodInclude = {
+            model: ProductFood,
+            as: "product_foods",
+            attributes: ["scores"],
+            include: []
+            };
+
+            if (animal_type) {
+            productFoodInclude.include.push({
+                model: AnimalType,
+                as: "animal_type",
+                where: { code: animal_type },
+                attributes: ["id", "code", "name"],
+                required: true
+            });
+            } else {
+            productFoodInclude.include.push({
+                model: AnimalType,
+                as: "animal_type",
+                attributes: ["id", "code", "name"],
+                required: false
+            });
+            }
+
+            if (food_type) {
+            productFoodInclude.include.push({
+                model: FoodType,
+                as: "food_type",
+                where: { code: food_type },
+                attributes: ["id", "code", "name"],
+                required: true
+            });
+            } else {
+            productFoodInclude.include.push({
+                model: FoodType,
+                as: "food_type",
+                attributes: ["id", "code", "name"],
+                required: false
+            });
+            }
+
+            const products = await Product.findAll({
+            attributes: ["id", "name", "brand", "image_url"],
+            include: [
+                productFoodInclude,
+                {
+                model: ProductType,
+                as: "type",
+                attributes: ["id", "code", "name"],
+                required: false
+                }
+            ]
+            });
+
+            // Filtrer les produits qui n'ont pas de ProductFood correspondant si filtre appliqué
+            const filteredProducts = products.filter(p => p.product_foods.length > 0);
+
+            // Transformer scores pour ne garder que pt et pct
+            const lightProducts = filteredProducts.map(prod => {
+            const pf = prod.product_foods[0]; // on prend le premier ProductFood
+            const scoresRaw = pf?.scores || {};
+            const filteredScores = {};
             for (const [key, value] of Object.entries(scoresRaw)) {
-                filteredScores[key] = {
-                pt: value.pt,
-                pct: value.pct
-                };
+                filteredScores[key] = { pt: value.pt, pct: value.pct };
             }
 
             return {
@@ -184,6 +281,9 @@ module.exports = function (app, router) {
                 name: prod.name,
                 brand: prod.brand,
                 image_url: prod.image_url,
+                type: prod.type || null,
+                animal_type: pf.animal_type || null,
+                food_type: pf.food_type || null,
                 scores: filteredScores
             };
             });
@@ -193,6 +293,6 @@ module.exports = function (app, router) {
             console.error(err);
             res.status(500).json({ error: "Erreur serveur" });
         }
-    });
+        });
 
 };
