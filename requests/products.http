@@ -1,0 +1,18 @@
+@port = {{APP_PORT}}
+@baseUrl = http://localhost:{{port}}/api
+
+### GET a product by id
+@id = 20
+GET {{baseUrl}}/products/{{id}}
+Accept: application/json
+
+?? status == 200
+?? header Content-Type ~= application/json
+
+### GET a product by code EAN13
+@ean = 7613035845084
+GET {{baseUrl}}/products/ean/{{ean}}
+Accept: application/json
+
+?? status == 200
+?? header Content-Type ~= application/json
