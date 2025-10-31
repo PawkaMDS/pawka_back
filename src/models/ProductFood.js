@@ -34,6 +34,12 @@ const ProductFood = sequelize.define(
             type: DataTypes.TEXT,
             allowNull: true,
         },
+        analytical_composition: {
+            type: DataTypes.JSONB,
+            allowNull: true,
+            defaultValue: null,
+            comment: "JSON object containing the macronutrient breakdown",
+        },
         life_stage: {
             type: DataTypes.ENUM(['puppy', 'adult', 'senior', 'kitten']),
             allowNull: true,
