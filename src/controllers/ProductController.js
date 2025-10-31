@@ -152,4 +152,47 @@ module.exports = function (app, router) {
             return res.status(500).json({ error: "Erreur interne lors de la récupération du produit" });
         }
     });
+
+
+   router.get("/products", async (req, res) => {
+  try {
+    const products = await Product.findAll({
+      attributes: ["id", "name", "brand", "image_url"],
+      include: [
+        {
+          model: ProductFood,
+          as: "product_foods",
+          attributes: ["scores"] // on récupère tout, mais on filtrera après
+        }
+      ]
+    });
+
+    // Transformation pour ne garder que pt et pct
+    const lightProducts = products.map(prod => {
+      const scoresRaw = prod.product_foods[0]?.scores || {};
+      const filteredScores = {};
+
+            for (const [key, value] of Object.entries(scoresRaw)) {
+                filteredScores[key] = {
+                pt: value.pt,
+                pct: value.pct
+                };
+            }
+
+            return {
+                id: prod.id,
+                name: prod.name,
+                brand: prod.brand,
+                image_url: prod.image_url,
+                scores: filteredScores
+            };
+            });
+
+            res.json(lightProducts);
+        } catch (err) {
+            console.error(err);
+            res.status(500).json({ error: "Erreur serveur" });
+        }
+    });
+
 };
