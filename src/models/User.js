@@ -19,12 +19,28 @@ const User = sequelize.define(
       unique: true,
     },
     role: {
-      type: DataTypes.ENUM(["USER", "ADMIN", "OWNER"]),
+      type: DataTypes.ENUM(["USER", "ADMIN"]),
       allowNull: false,
       defaultValue: "USER",
     },
+    is_premium: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    },
+    premium_start: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      defaultValue: null,
+    },
+    premium_until: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      defaultValue: null,
+    },
   },
   {
+    tableName: "users",
     indexes: [
       { 'unique': true, fields: ['email'] },
     ],
