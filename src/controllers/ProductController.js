@@ -1,4 +1,4 @@
-
+const jwt = require("jsonwebtoken");
 const { Router } = require("express");
 const { Op } = require("sequelize");
 const sequelize = require("../utils/sequelize"); // Assurez-vous que le chemin est correct
@@ -10,6 +10,8 @@ const ProductFood = require("../models/ProductFood"); // Assurez-vous que le che
 const SearchHistoryItem = require("../models/SearchHistoryItem");
 const requireRoles = require("../middlewares/require-role");
 const requireAuthentication = require("../middlewares/require-auth");
+const User = require("../models/User");
+
 
 /**
  * Configure les routes pour la gestion des produits.
@@ -156,6 +158,11 @@ module.exports = function (app, router) {
         }
     });
 
+    /**
+ * Route GET /products/:id
+ * Récupère un produit par son id avec ses relations et creer dans History
+ * une nouvelle entrée.
+ */
     router.get("/products/:id", async (req, res) => {
         try {
             const { id } = req.params;
@@ -164,28 +171,29 @@ module.exports = function (app, router) {
                 return res.status(400).json({ error: "L'ID du produit est requis" });
             }
 
+            // Vérification du token JWT
+            const token = req.headers.authorization?.split(" ")?.[1];
+            if (!token) {
+                return res.status(401).json({ message: "Token manquant" });
+            }
+
+            const decoded = jwt.verify(token, process.env.JWT_SECRET);
+            const user = await User.findOne({ where: { id: decoded.id } });
+            if (!user) {
+                return res.status(401).json({ message: "Utilisateur non trouvé" });
+            }
+
+            // Récupération du produit
             const product = await Product.findOne({
                 where: { id },
                 include: [
-                    {
-                        model: ProductType,
-                        as: "type",
-                        attributes: ["id", "code", "name"],
-                    },
+                    { model: ProductType, as: "type", attributes: ["id", "code", "name"] },
                     {
                         model: ProductFood,
                         as: "product_foods",
                         include: [
-                            {
-                                model: AnimalType,
-                                as: "animal_type",
-                                attributes: ["id", "code", "name"],
-                            },
-                            {
-                                model: FoodType,
-                                as: "food_type",
-                                attributes: ["id", "code", "name", "default_moisture"],
-                            },
+                            { model: AnimalType, as: "animal_type", attributes: ["id", "code", "name"] },
+                            { model: FoodType, as: "food_type", attributes: ["id", "code", "name", "default_moisture"] },
                         ],
                     },
                 ],
@@ -195,14 +203,27 @@ module.exports = function (app, router) {
                 return res.status(404).json({ error: "Produit introuvable" });
             }
 
+            // Historique : supprimer l'ancienne entrée si elle existe
+            await SearchHistoryItem.destroy({
+                where: { user_id: user.id, product_id: product.id },
+            });
+
+            // Créer la nouvelle entrée
+            await SearchHistoryItem.create({
+                user_id: user.id,
+                product_id: product.id,
+                created_at: new Date(),
+            });
+
             return res.json(product);
         } catch (error) {
-            console.error("❌ Erreur GET /products/id/:id:", error);
+            if (error.name === "TokenExpiredError") {
+                return res.status(401).json({ type: "TOKEN_EXPIRED" });
+            }
+            console.error("❌ Erreur GET /products/:id:", error);
             return res.status(500).json({ error: "Erreur interne lors de la récupération du produit" });
         }
     });
-
-
 
 
     /**
