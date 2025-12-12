@@ -232,7 +232,6 @@ module.exports = function (app, router) {
         }
     });
 
-
     /**
       * Route GET /products
       * Récupère tout les produits sans détails des critères.
@@ -330,6 +329,11 @@ module.exports = function (app, router) {
     });
 
 
+    /**
+     * Route DELETE /products/:id
+     * Supprime un produit par son ID ainsi que toutes les données associées (ProductFood, historique).
+     * Protégé par une authentification et nécessite le rôle ADMIN.
+     */
     router.delete(
         "/products/:id",
         requireAuthentication,
@@ -457,7 +461,6 @@ module.exports = function (app, router) {
                             fat_percent: data.fat_percent ?? null,
                             fiber_percent: data.fiber_percent ?? null,
                             ash_percent: data.ash_percent ?? null,
-                    
                         },
                         scores: data.scores ?? null,
                         analyzed_at: data.analyzed_at ?? null,
@@ -482,7 +485,13 @@ module.exports = function (app, router) {
             return res.status(500).json({ error: "Erreur interne lors du bulk insert" });
         }
     });
-    // POC : analyser un code-barres et renvoyer le JSON de l'IA
+
+    /**
+     * Route POST /products/scan/:barcode
+     * Analyse un produit via son code-barres en utilisant le service d'analyse.
+     * Expects param: barcode
+     * Returns: analysis result JSON
+     */
     router.post(
         "/products/scan/:barcode",
         async (req, res) => {
@@ -493,11 +502,10 @@ module.exports = function (app, router) {
             }
 
             try {
-                console.log(`➡️  [Route] /products/scan/${barcode}`);
+                const rid = Math.random().toString(16).slice(2, 8);
+                console.log(`➡️ [Route][${rid}] /products/scan/${barcode}`);
+                const result = await analyzeProductBarcode(barcode, rid);
 
-                const result = await analyzeProductBarcode(barcode);
-
-                // pour le POC, on renvoie tel quel
                 return res.json(result);
             } catch (error) {
                 console.error("❌ [Route] Error during analysis:", error.message);
@@ -505,5 +513,4 @@ module.exports = function (app, router) {
             }
         }
     );
-
 };
