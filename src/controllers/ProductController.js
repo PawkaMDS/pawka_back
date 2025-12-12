@@ -11,7 +11,7 @@ const SearchHistoryItem = require("../models/SearchHistoryItem");
 const requireRoles = require("../middlewares/require-role");
 const requireAuthentication = require("../middlewares/require-auth");
 const User = require("../models/User");
-
+const { createProductFromPayload } = require("../services/productCreateService");
 const { analyzeProductBarcode } = require("../services/productAnalysisService");
 
 /**
@@ -27,87 +27,18 @@ module.exports = function (app, router) {
      * Crée un nouveau Product et l'enregistrement ProductFood associé en utilisant une transaction.
      */
     router.post("/products", async (req, res) => {
-        const t = await sequelize.transaction();
-
         try {
-            const data = req.body;
-
-            if (!data.code_ean) {
-                return res.status(400).json({ error: "Le code EAN est requis" });
-            }
-
-            // Vérifie si le produit existe déjà
-            // NOTE: Cette vérification n'est pas dans la transaction car elle est utilisée pour un contrôle
-            // immédiat et pourrait causer des problèmes de deadlock si l'index unique existe.
-            const existing = await Product.findOne({ where: { code_ean: data.code_ean } });
-            if (existing) {
-                return res.status(409).json({ error: "Produit déjà existant avec ce code EAN" });
-            }
-
-            // Vérification des références (productType, animalType, foodType)
-            const productType = await ProductType.findOne({ where: { code: data.product_type_code }, transaction: t });
-            const animalType = await AnimalType.findOne({ where: { code: data.animal_type_code }, transaction: t });
-            const foodType = await FoodType.findOne({ where: { code: data.food_type_code }, transaction: t });
-
-            if (!productType || !animalType || !foodType) {
-                await t.rollback();
-                return res.status(400).json({
-                    error: "Codes invalides : product_type_code, animal_type_code ou food_type_code manquant ou incorrect",
-                });
-            }
-
-            // Création du produit
-            const product = await Product.create(
-                {
-                    code_ean: data.code_ean,
-                    name: data.name,
-                    brand: data.brand,
-                    image_url: data.image_url,
-                    is_verified: data.is_verified ?? false,
-                    type_id: productType.id,
-                },
-                { transaction: t }
-            );
-
-            // Création de la fiche ProductFood associée
-            const productFood = await ProductFood.create(
-                {
-                    product_id: product.id,
-                    animal_type_id: animalType.id,
-                    food_type_id: foodType.id,
-                    ingredients: data.ingredients ?? null,
-                    life_stage: data.life_stage ?? null,
-                    is_for_sterilised: data.is_for_sterilised ?? false,
-                    breed_size: data.breed_size ?? null,
-                    moisture_percent: data.moisture_percent ?? foodType.default_moisture ?? null,
-                    analytical_composition: data.analytical_composition ?? {
-                        protein_percent: data.protein_percent ?? null,
-                        fat_percent: data.fat_percent ?? null,
-                        fiber_percent: data.fiber_percent ?? null,
-                        ash_percent: data.ash_percent ?? null,
-                    },
-                    scores: data.scores ?? null,
-                    analyzed_at: data.analyzed_at ?? null,
-                    fediaf_conformity: data.fediaf_conformity ?? null,
-                    has_chemical_additives: data.has_chemical_additives ?? false,
-                    has_beneficial_additives: data.has_beneficial_additives ?? false,
-                    sources: data.sources ?? null,
-                    score_version: data.score_version ?? "1.0.0",
-                },
-                { transaction: t }
-            );
-
-            await t.commit();
+            const { product, productFood, alreadyExists } = await createProductFromPayload(req.body, { allowExisting: false });
 
             return res.status(201).json({
                 message: "Produit créé avec succès",
+                alreadyExists,
                 product,
                 productFood,
             });
         } catch (error) {
-            await t.rollback();
             console.error("❌ Erreur POST /products:", error);
-            return res.status(500).json({ error: "Erreur interne lors de la création du produit" });
+            return res.status(error.statusCode || 500).json({ error: error.message || "Erreur interne lors de la création du produit" });
         }
     });
 
@@ -492,25 +423,67 @@ module.exports = function (app, router) {
      * Expects param: barcode
      * Returns: analysis result JSON
      */
-    router.post(
-        "/products/scan/:barcode",
-        async (req, res) => {
-            const { barcode } = req.params;
+    router.post("/products/scan/:barcode", async (req, res) => {
+        const { barcode } = req.params;
+        if (!barcode) return res.status(400).json({ error: "Barcode is required" });
 
-            if (!barcode) {
-                return res.status(400).json({ error: "Barcode is required" });
+        const rid = Math.random().toString(16).slice(2, 8);
+        console.log(`➡️ [Route][${rid}] /products/scan/${barcode}`);
+
+        try {
+            // 1) Anti double-scan : check DB d'abord
+            const existing = await Product.findOne({
+                where: { code_ean: barcode },
+                include: [{ model: ProductFood, as: "product_foods" }],
+            });
+
+            if (existing) {
+                console.log(`✅ [Route][${rid}] Cache hit (already exists) for ${barcode}`);
+                return res.status(200).json({
+                    status: "already_exists",
+                    product: existing,
+                });
             }
 
-            try {
-                const rid = Math.random().toString(16).slice(2, 8);
-                console.log(`➡️ [Route][${rid}] /products/scan/${barcode}`);
-                const result = await analyzeProductBarcode(barcode, rid);
+            // 2) Analyse (SerpAPI + fetch + LLM)
+            console.log(`🧠 [Route][${rid}] Not in DB, running analysis...`);
+            const analysis = await analyzeProductBarcode(barcode, rid);
 
-                return res.json(result);
-            } catch (error) {
-                console.error("❌ [Route] Error during analysis:", error.message);
-                return res.status(500).json({ error: "Internal error during product analysis" });
+            // 3) Si l’analyse n’est pas OK : on renvoie directement
+            if (!analysis || analysis.status !== "ok") {
+                console.log(`ℹ️ [Route][${rid}] Analysis finished with status=${analysis?.status}`);
+                return res.status(200).json(analysis || { status: "not_found" });
             }
+
+            // 4) Re-check DB avant insert (évite course condition)
+            const existingAfter = await Product.findOne({
+                where: { code_ean: barcode },
+                include: [{ model: ProductFood, as: "product_foods" }],
+            });
+
+            if (existingAfter) {
+                console.log(`✅ [Route][${rid}] Became existing during analysis (race condition).`);
+                return res.status(200).json({
+                    status: "already_exists",
+                    product: existingAfter,
+                });
+            }
+
+            // 5) Insert DB
+            console.log(`💾 [Route][${rid}] Analysis OK, creating product...`);
+            const created = await createProductFromPayload(analysis, { allowExisting: true });
+
+            // created.status = created | already_exists
+            return res.status(201).json({
+                status: created.status,
+                product: created.product || null,
+                analysis, // utile pour debug; tu peux enlever en prod
+            });
+        } catch (error) {
+            console.error(`❌ [Route][${rid}] Error during scan+create:`, error);
+            return res.status(error.statusCode || 500).json({
+                error: error.message || "Internal error during product scan",
+            });
         }
-    );
+    });
 };
