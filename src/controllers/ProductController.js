@@ -166,10 +166,10 @@ module.exports = function (app, router) {
     });
 
     /**
- * Route GET /products/:id
- * Récupère un produit par son id avec ses relations et creer dans History
- * une nouvelle entrée.
- */
+     * Route GET /products/:id
+     * Récupère un produit par son id avec ses relations et creer dans History
+     * une nouvelle entrée.
+     */
     router.get("/products/:id", async (req, res) => {
         try {
             const { id } = req.params;
@@ -317,7 +317,7 @@ module.exports = function (app, router) {
                     scores: filteredScores,
                     moisture_percent: pf?.moisture_percent ?? null,
                     analytical_composition: pf?.analytical_composition ?? null,
-                
+
                 };
             });
 
@@ -420,7 +420,7 @@ module.exports = function (app, router) {
                 if (existing) {
                     skipped.push({ index: i, code_ean: data.code_ean, reason: "already_exists" });
                     continue;
-                }   
+                }
 
                 // Récupération des références
                 const productType = await ProductType.findOne({ where: { code: data.product_type_code }, transaction: t });
