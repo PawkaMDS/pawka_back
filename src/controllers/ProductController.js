@@ -79,6 +79,12 @@ module.exports = function (app, router) {
                     is_for_sterilised: data.is_for_sterilised ?? false,
                     breed_size: data.breed_size ?? null,
                     moisture_percent: data.moisture_percent ?? foodType.default_moisture ?? null,
+                    analytical_composition: data.analytical_composition ?? {
+                        protein_percent: data.protein_percent ?? null,
+                        fat_percent: data.fat_percent ?? null,
+                        fiber_percent: data.fiber_percent ?? null,
+                        ash_percent: data.ash_percent ?? null,
+                    },
                     scores: data.scores ?? null,
                     analyzed_at: data.analyzed_at ?? null,
                     fediaf_conformity: data.fediaf_conformity ?? null,
@@ -237,7 +243,7 @@ module.exports = function (app, router) {
             const productFoodInclude = {
                 model: ProductFood,
                 as: "product_foods",
-                attributes: ["scores"],
+                attributes: ["scores", "analytical_composition", "moisture_percent"],
                 include: []
             };
 
@@ -308,7 +314,10 @@ module.exports = function (app, router) {
                     type: prod.type || null,
                     animal_type: pf.animal_type || null,
                     food_type: pf.food_type || null,
-                    scores: filteredScores
+                    scores: filteredScores,
+                    moisture_percent: pf?.moisture_percent ?? null,
+                    analytical_composition: pf?.analytical_composition ?? null,
+                
                 };
             });
 
@@ -442,6 +451,13 @@ module.exports = function (app, router) {
                         is_for_sterilised: data.is_for_sterilised ?? false,
                         breed_size: data.breed_size ?? null,
                         moisture_percent: data.moisture_percent ?? foodType.default_moisture ?? null,
+                        analytical_composition: data.analytical_composition ?? {
+                            protein_percent: data.protein_percent ?? null,
+                            fat_percent: data.fat_percent ?? null,
+                            fiber_percent: data.fiber_percent ?? null,
+                            ash_percent: data.ash_percent ?? null,
+                    
+                        },
                         scores: data.scores ?? null,
                         analyzed_at: data.analyzed_at ?? null,
                         fediaf_conformity: data.fediaf_conformity ?? null,
