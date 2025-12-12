@@ -80,6 +80,12 @@ module.exports = function (app, router) {
                     is_for_sterilised: data.is_for_sterilised ?? false,
                     breed_size: data.breed_size ?? null,
                     moisture_percent: data.moisture_percent ?? foodType.default_moisture ?? null,
+                    analytical_composition: data.analytical_composition ?? {
+                        protein_percent: data.protein_percent ?? null,
+                        fat_percent: data.fat_percent ?? null,
+                        fiber_percent: data.fiber_percent ?? null,
+                        ash_percent: data.ash_percent ?? null,
+                    },
                     scores: data.scores ?? null,
                     analyzed_at: data.analyzed_at ?? null,
                     fediaf_conformity: data.fediaf_conformity ?? null,
@@ -238,7 +244,7 @@ module.exports = function (app, router) {
             const productFoodInclude = {
                 model: ProductFood,
                 as: "product_foods",
-                attributes: ["scores"],
+                attributes: ["scores", "analytical_composition", "moisture_percent"],
                 include: []
             };
 
@@ -309,7 +315,10 @@ module.exports = function (app, router) {
                     type: prod.type || null,
                     animal_type: pf.animal_type || null,
                     food_type: pf.food_type || null,
-                    scores: filteredScores
+                    scores: filteredScores,
+                    moisture_percent: pf?.moisture_percent ?? null,
+                    analytical_composition: pf?.analytical_composition ?? null,
+                
                 };
             });
 
@@ -375,6 +384,104 @@ module.exports = function (app, router) {
         }
     );
 
+    /**
+     * Route POST /multipleProducts
+     * Crée plusieurs Products et leurs ProductFood associés dans une seule transaction.
+     * Expects body: { products: [ { code_ean, name, brand, product_type_code, animal_type_code, food_type_code, ... }, ... ] }
+     */
+    router.post("/multipleProducts", async (req, res) => {
+        const t = await sequelize.transaction();
+
+        try {
+            const items = Array.isArray(req.body) ? req.body : req.body.products;
+
+            if (!Array.isArray(items) || items.length === 0) {
+                await t.rollback();
+                return res.status(400).json({ error: "Un tableau 'products' est requis" });
+            }
+
+            const created = [];
+            const skipped = [];
+
+            for (let i = 0; i < items.length; i++) {
+                const data = items[i];
+
+                if (!data || !data.code_ean) {
+                    skipped.push({ index: i, reason: "missing_code_ean" });
+                    continue;
+                }
+
+                // Vérifie si le produit existe déjà
+                const existing = await Product.findOne({ where: { code_ean: data.code_ean }, transaction: t });
+                if (existing) {
+                    skipped.push({ index: i, code_ean: data.code_ean, reason: "already_exists" });
+                    continue;
+                }   
+
+                // Récupération des références
+                const productType = await ProductType.findOne({ where: { code: data.product_type_code }, transaction: t });
+                const animalType = await AnimalType.findOne({ where: { code: data.animal_type_code }, transaction: t });
+                const foodType = await FoodType.findOne({ where: { code: data.food_type_code }, transaction: t });
+
+                if (!productType || !animalType || !foodType) {
+                    skipped.push({ index: i, code_ean: data.code_ean, reason: "invalid_type_codes" });
+                    continue;
+                }
+
+                // Création Product
+                const product = await Product.create(
+                    {
+                        code_ean: data.code_ean,
+                        name: data.name,
+                        brand: data.brand,
+                        image_url: data.image_url,
+                        is_verified: data.is_verified ?? false,
+                        type_id: productType.id,
+                    },
+                    { transaction: t }
+                );
+
+                // Création ProductFood
+                const productFood = await ProductFood.create(
+                    {
+                        product_id: product.id,
+                        animal_type_id: animalType.id,
+                        food_type_id: foodType.id,
+                        ingredients: data.ingredients ?? null,
+                        life_stage: data.life_stage ?? null,
+                        is_for_sterilised: data.is_for_sterilised ?? false,
+                        breed_size: data.breed_size ?? null,
+                        moisture_percent: data.moisture_percent ?? foodType.default_moisture ?? null,
+                        analytical_composition: data.analytical_composition ?? {
+                            protein_percent: data.protein_percent ?? null,
+                            fat_percent: data.fat_percent ?? null,
+                            fiber_percent: data.fiber_percent ?? null,
+                            ash_percent: data.ash_percent ?? null,
+                    
+                        },
+                        scores: data.scores ?? null,
+                        analyzed_at: data.analyzed_at ?? null,
+                        fediaf_conformity: data.fediaf_conformity ?? null,
+                        has_chemical_additives: data.has_chemical_additives ?? false,
+                        has_beneficial_additives: data.has_beneficial_additives ?? false,
+                        sources: data.sources ?? null,
+                        score_version: data.score_version ?? "1.0.0",
+                    },
+                    { transaction: t }
+                );
+
+                created.push({ product, productFood });
+            }
+
+            await t.commit();
+
+            return res.status(201).json({ message: "Bulk insert terminé", createdCount: created.length, created, skipped });
+        } catch (error) {
+            await t.rollback();
+            console.error("❌ Erreur POST /multipleProducts:", error);
+            return res.status(500).json({ error: "Erreur interne lors du bulk insert" });
+        }
+    });
     // POC : analyser un code-barres et renvoyer le JSON de l'IA
     router.post(
         "/products/scan/:barcode",
