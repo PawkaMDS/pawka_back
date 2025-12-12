@@ -12,6 +12,7 @@ const requireRoles = require("../middlewares/require-role");
 const requireAuthentication = require("../middlewares/require-auth");
 const User = require("../models/User");
 
+const { analyzeProductBarcode } = require("../services/productAnalysisService");
 
 /**
  * Configure les routes pour la gestion des produits.
@@ -370,6 +371,30 @@ module.exports = function (app, router) {
                 await transaction.rollback();
                 console.error("❌ Erreur DELETE /products/:id:", error);
                 return res.status(500).json({ error: "Erreur interne lors de la suppression du produit" });
+            }
+        }
+    );
+
+    // POC : analyser un code-barres et renvoyer le JSON de l'IA
+    router.post(
+        "/products/scan/:barcode",
+        async (req, res) => {
+            const { barcode } = req.params;
+
+            if (!barcode) {
+                return res.status(400).json({ error: "Barcode is required" });
+            }
+
+            try {
+                console.log(`➡️  [Route] /products/scan/${barcode}`);
+
+                const result = await analyzeProductBarcode(barcode);
+
+                // pour le POC, on renvoie tel quel
+                return res.json(result);
+            } catch (error) {
+                console.error("❌ [Route] Error during analysis:", error.message);
+                return res.status(500).json({ error: "Internal error during product analysis" });
             }
         }
     );
