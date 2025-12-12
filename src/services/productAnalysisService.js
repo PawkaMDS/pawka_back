@@ -52,14 +52,13 @@ function buildSystemPromptCompact() {
             "has_chemical_additives": true|false,
             "has_beneficial_additives": true|false,
             "sources": string,
-            "score_version": "0.0.2"
+            "score_version": "0.0.3"
         }
 
         Rules:
         - All human-readable text (name, ingredients, additives_list, scores.*.rationale, sources) MUST be written in French.
         - Use ONLY the provided data (search results + reduced page snippets). Do NOT invent information.
         - Fields must be null if not explicitly stated, except moisture_percent (see rule below).
-        - Never estimate carbohydrates: carbs_percent must be null unless explicitly provided.
         - If moisture_percent is explicitly stated, use that value.
         - If NOT stated, set default moisture_percent based on food_type:
             - kibble → 10
@@ -70,6 +69,11 @@ function buildSystemPromptCompact() {
             - otherwise → null
         - If the product is not clearly dog or cat food, return {"status":"not_animal_food"}.
         - If no reliable product information is found, return {"status":"not_found"}.
+
+        Scoring constraint:
+        - If analytical_composition values are null, scores MUST be based only on ingredients/additives (qualitative).
+        - In that case, rationales must explicitly say "évaluation qualitative (sans valeurs analytiques)".
+        - Do NOT imply numeric composition exists if analytical_composition is null.
 
         Scores rules (MANDATORY):
         - If status="ok", you MUST compute ALL scores.*.pt and scores.*.pct (integers) and a French rationale (1-2 sentences).
