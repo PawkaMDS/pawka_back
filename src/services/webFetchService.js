@@ -51,6 +51,39 @@ function extractSnippets(html, keywords, windowSize = 1200, maxSnippets = 6) {
     return snippets;
 }
 
+function extractImageUrls(rawHtml, pageUrl, limit = 5) {
+    const urls = [];
+    const seen = new Set();
+
+    // Get src="..." et data-src="..."
+    const regex = /(src|data-src)\s*=\s*["']([^"']+)["']/gi;
+    let m;
+
+    while ((m = regex.exec(rawHtml)) && urls.length < limit) {
+        let u = m[2];
+
+        // Ignore base64
+        if (u.startsWith("data:")) continue;
+
+        // Make absolute if relative
+        try {
+            u = new URL(u, pageUrl).toString();
+        } catch (_) {
+            continue;
+        }
+
+        // Basic filter: images only
+        if (!/\.(jpg|jpeg|png|webp)(\?|#|$)/i.test(u)) continue;
+
+        if (!seen.has(u)) {
+            seen.add(u);
+            urls.push(u);
+        }
+    }
+
+    return urls;
+}
+
 async function fetchAndReducePage(url) {
     console.log(`🌐 [Fetch] GET ${url}`);
 
@@ -70,7 +103,10 @@ async function fetchAndReducePage(url) {
             return { url, reduced_text: null, status: res.status, error: `HTTP_${res.status}` };
         }
 
-        const cleaned = cleanHtml(res.data.toString());
+        const rawHtml = res.data.toString();
+        const image_candidates = extractImageUrls(rawHtml, url, 5);
+
+        const cleaned = cleanHtml(rawHtml);
 
         const snippets = extractSnippets(cleaned, KEYWORDS, 900, 5);
         const fallback = cleaned.slice(0, 2500);
@@ -78,11 +114,13 @@ async function fetchAndReducePage(url) {
         const MAX_REDUCED_CHARS = 5000;
         const reduced_text = (snippets.length ? snippets.join("\n\n") : fallback).slice(0, MAX_REDUCED_CHARS);
 
-        console.log(`✅ [Fetch] Reduced content length=${reduced_text.length} chars (snippets=${snippets.length})`);
-        return { url, reduced_text, status: res.status, error: null };
+        console.log(
+            `✅ [Fetch] Reduced content length=${reduced_text.length} chars (snippets=${snippets.length}) images=${image_candidates.length}`
+        );
+        return { url, reduced_text, image_candidates, status: res.status, error: null };
     } catch (e) {
         console.warn(`⚠️ [Fetch] Failed ${url}:`, e.message);
-        return { url, reduced_text: null, status: null, error: e.message };
+        return { url, reduced_text: null, image_candidates: [], status: null, error: e.message };
     }
 }
 

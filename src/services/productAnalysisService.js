@@ -52,7 +52,7 @@ function buildSystemPromptCompact() {
             "has_chemical_additives": true|false,
             "has_beneficial_additives": true|false,
             "sources": string,
-            "score_version": "0.0.3"
+            "score_version": "0.0.4"
         }
 
         Rules:
@@ -69,6 +69,11 @@ function buildSystemPromptCompact() {
             - otherwise → null
         - If the product is not clearly dog or cat food, return {"status":"not_animal_food"}.
         - If no reliable product information is found, return {"status":"not_found"}.
+
+        Image rule:
+        - image_url MUST be a direct image URL (http/https ending with .jpg/.jpeg/.png/.webp) if any such URL is present in the provided data (page snippets).
+        - Prefer the main product packshot image (closest to the product name/brand), otherwise use the first relevant product image found.
+        - If no image URL is present in the provided data, set image_url to null (do not invent).
 
         Scoring constraint:
         - If analytical_composition values are null, scores MUST be based only on ingredients/additives (qualitative).
@@ -104,6 +109,7 @@ async function analyzeProductBarcode(barcode) {
     // 2) Fetch pages, skip errors, keep up to N valid pages
     const MAX_VALID_PAGES = 3; // safe tokens
     const pages = [];
+    let image_url = null;
 
     for (const r of searchResults) {
         if (pages.length >= MAX_VALID_PAGES) break;
@@ -122,7 +128,13 @@ async function analyzeProductBarcode(barcode) {
             reduced_text: page.reduced_text,
             status: page.status || null,
             error: page.error || null,
+            image_candidates: page.image_candidates || [],
         });
+
+        if (!image_url && page.image_candidates?.length) {
+            image_url = page.image_candidates[0];
+            console.log(`🖼️ [Analysis] Selected image_url: ${image_url}`);
+        }
 
         console.log(`✅ [Analysis] Kept page ${pages.length}/${MAX_VALID_PAGES}: ${r.url}`);
     }
@@ -135,6 +147,7 @@ async function analyzeProductBarcode(barcode) {
     const userPayload = {
         barcode,
         openpetfoodfacts: null,
+        image_url_suggestion: image_url,
         search_results: searchResults,
         pages,
     };
@@ -149,7 +162,12 @@ async function analyzeProductBarcode(barcode) {
         { role: "user", content: userStr },
     ]);
 
-    return JSON.parse(raw);
+
+    const parsed = JSON.parse(raw);
+    if (parsed?.status === "ok" && !parsed.image_url && image_url) {
+        parsed.image_url = image_url;
+    }
+    return parsed;
 }
 
 module.exports = { analyzeProductBarcode };
