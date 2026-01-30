@@ -26,7 +26,7 @@ module.exports = function (app, router) {
      * Route POST /products
      * Crée un nouveau Product et l'enregistrement ProductFood associé en utilisant une transaction.
      */
-    router.post("/products", async (req, res) => {
+    router.post("/products", requireAuthentication, requireRoles(["ADMIN"]), async (req, res) => {
         try {
             const { product, productFood, alreadyExists } = await createProductFromPayload(req.body, { allowExisting: false });
 
@@ -324,7 +324,7 @@ module.exports = function (app, router) {
      * Crée plusieurs Products et leurs ProductFood associés dans une seule transaction.
      * Expects body: { products: [ { code_ean, name, brand, product_type_code, animal_type_code, food_type_code, ... }, ... ] }
      */
-    router.post("/multipleProducts", async (req, res) => {
+    router.post("/multipleProducts", requireAuthentication, requireRoles(["ADMIN"]), async (req, res) => {
         const t = await sequelize.transaction();
 
         try {
