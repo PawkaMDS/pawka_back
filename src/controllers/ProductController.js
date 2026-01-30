@@ -46,13 +46,38 @@ module.exports = function (app, router) {
      * Route GET /products/ean/:code_ean
      * Récupère un produit par son code EAN avec ses relations.
      */
-    router.get("/products/ean/:code_ean", async (req, res) => {
+    router.get("/products/ean/:code_ean", requireAuthentication, async (req, res) => {
         try {
             const { code_ean } = req.params;
-
             if (!code_ean) {
-                // Bien que l'EAN soit dans les params, cette vérification est bonne pratique
                 return res.status(400).json({ error: "Le code EAN est requis" });
+            }
+
+            const user = req.user;
+            const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+            if (user.role === "USER") {
+                const scans = await SearchHistoryItem.findAll({
+                    where: {
+                        user_id: user.id,
+                        createdAt: { [Op.gte]: since },
+                    },
+                    order: [["createdAt", "ASC"]],
+                });
+
+                if (scans.length >= 5) {
+                    const nextAllowed = new Date(scans[0].createdAt.getTime() + 24 * 60 * 60 * 1000);
+                    const msLeft = Math.max(0, nextAllowed - Date.now());
+
+                    const totalSeconds = Math.floor(msLeft / 1000);
+                    const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, "0");
+                    const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, "0");
+                    const seconds = String(totalSeconds % 60).padStart(2, "0");
+
+                    return res.status(429).json({
+                        error: `Vous ne pouvez scanner que 5 produits par jour, revenez dans ${hours}:${minutes}:${seconds}`,
+                    });
+                }
             }
 
             const product = await Product.findOne({
@@ -66,9 +91,6 @@ module.exports = function (app, router) {
                     {
                         model: ProductFood,
                         as: "product_foods",
-                        // L'association est probablement HasOne/HasMany, si c'est HasMany,
-                        // vous pourriez avoir plusieurs product_foods. Si c'est HasOne,
-                        // 'product_foods' devrait être 'productFood'. J'utilise le nom de l'alias d'origine.
                         include: [
                             {
                                 model: AnimalType,
@@ -89,10 +111,25 @@ module.exports = function (app, router) {
                 return res.status(404).json({ error: "Produit introuvable" });
             }
 
+            const alreadyScanned = await SearchHistoryItem.findOne({
+                where: {
+                    user_id: user.id,
+                    product_id: product.id,
+                    createdAt: { [Op.gte]: since },
+                },
+            });
+
+            if (!alreadyScanned) {
+                await SearchHistoryItem.create({
+                    user_id: user.id,
+                    product_id: product.id,
+                });
+            }
+
             return res.json(product);
         } catch (error) {
             console.error("❌ Erreur GET /products/ean/:code_ean:", error);
-            return res.status(500).json({ error: "Erreur interne lors de la récupération du produit" });
+            return res.status(500).json({ error: "Erreur interne" });
         }
     });
 
