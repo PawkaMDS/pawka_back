@@ -5,6 +5,7 @@ const seedProductTypes = require("./seedProductTypes");
 const seedUsers = require("./seedUsers");
 const seedAllProducts = require("./seedProducts");
 const seedSearchHistory = require("./seedSearchHistory");
+const seedAnimals = require("./seedAnimals");
 
 module.exports = async function seedAll(db) {
     await db.transaction(async (t) => {
@@ -15,6 +16,7 @@ module.exports = async function seedAll(db) {
         await seedUsers({ transaction: t });
         await seedAllProducts({ transaction: t });
         await seedSearchHistory({ transaction: t });
+        await seedAnimals({ transaction: t });
     });
     console.log("🌱 All seeds executed successfully");
 };
