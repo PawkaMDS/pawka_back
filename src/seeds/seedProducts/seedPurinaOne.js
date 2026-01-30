@@ -18,6 +18,7 @@ module.exports = async function seedPurinaOne(options = {}) {
             brand: "Purina One",
             image_url: "https://images.openpetfoodfacts.org/images/products/761/303/584/5084/front_fr.16.400.jpg",
             is_verified: true,
+            certification: "Ce produit contient plusieurs ingrédients peu qualitatifs (sous-produits animaux, colorants, céréales en excès). Il peut convenir ponctuellement, mais n’est pas recommandé pour un usage quotidien, surtout chez les animaux sensibles ou stérilisés.",
             type_id: productType.id,
         },
         { transaction: tx, returning: true }
