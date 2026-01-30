@@ -31,7 +31,7 @@ const Animal = sequelize.define(
             allowNull: false,
             references: { model: "animal_breeds", key: "id" },
             onUpdate: "CASCADE",
-            onDelete: "SET NULL",
+            onDelete: "RESTRICT",
         },
 
         birth_date: {
