@@ -1,5 +1,5 @@
 // src/services/productCreateService.js
-const {  Product, ProductFood, ProductType, AnimalType, FoodType } = require("../models");
+const { Product, ProductFood, ProductType, AnimalType, FoodType } = require("../models");
 const sequelize = require("../utils/sequelize");
 
 async function createProductFromPayload(data, { allowExisting = true } = {}) {
@@ -45,6 +45,7 @@ async function createProductFromPayload(data, { allowExisting = true } = {}) {
                 brand: data.brand,
                 image_url: data.image_url,
                 is_verified: data.is_verified ?? false,
+                certification: data.certification ?? null,
                 type_id: productType.id,
             },
             { transaction: t }
