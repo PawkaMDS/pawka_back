@@ -1,18 +1,34 @@
 const jwt = require("jsonwebtoken");
 const { Router } = require("express");
 const { Op } = require("sequelize");
-const sequelize = require("../utils/sequelize"); // Assurez-vous que le chemin est correct
-const Product = require("../models/Product"); // Assurez-vous que le chemin est correct
-const ProductType = require("../models/ProductType"); // Assurez-vous que le chemin est correct
-const AnimalType = require("../models/AnimalType"); // Assurez-vous que le chemin est correct
-const FoodType = require("../models/FoodType"); // Assurez-vous que le chemin est correct
-const ProductFood = require("../models/ProductFood"); // Assurez-vous que le chemin est correct
+const sequelize = require("../utils/sequelize");
+const Product = require("../models/Product");
+const ProductType = require("../models/ProductType");
+const AnimalType = require("../models/AnimalType");
+const FoodType = require("../models/FoodType");
+const ProductFood = require("../models/ProductFood");
 const SearchHistoryItem = require("../models/SearchHistoryItem");
 const requireRoles = require("../middlewares/require-role");
 const requireAuthentication = require("../middlewares/require-auth");
 const User = require("../models/User");
 const { createProductFromPayload } = require("../services/productCreateService");
 const { analyzeProductBarcode } = require("../services/productAnalysisService");
+
+/**
+ * Valide la cohérence entre is_verified et certification
+ * @param {boolean} isVerified
+ * @param {string|null} certification
+ * @returns {{ valid: boolean, error: string|null }}
+ */
+function validateCertification(isVerified, certification) {
+    if (isVerified && !certification) {
+        return { valid: false, error: "La certification est requise quand is_verified est true" };
+    }
+    if (!isVerified && certification) {
+        return { valid: false, error: "La certification ne peut être définie que si is_verified est true" };
+    }
+    return { valid: true, error: null };
+}
 
 /**
  * Configure les routes pour la gestion des produits.
@@ -28,6 +44,12 @@ module.exports = function (app, router) {
      */
     router.post("/products", requireAuthentication, requireRoles(["ADMIN"]), async (req, res) => {
         try {
+            // Validation certification
+            const certValidation = validateCertification(req.body.is_verified, req.body.certification);
+            if (!certValidation.valid) {
+                return res.status(400).json({ error: certValidation.error });
+            }
+
             const { product, productFood, alreadyExists } = await createProductFromPayload(req.body, { allowExisting: false });
 
             return res.status(201).json({
@@ -250,7 +272,7 @@ module.exports = function (app, router) {
             }
 
             const products = await Product.findAll({
-                attributes: ["id", "name", "brand", "image_url"],
+                attributes: ["id", "name", "brand", "image_url", "is_verified", "certification"],
                 include: [
                     productFoodInclude,
                     {
@@ -279,13 +301,14 @@ module.exports = function (app, router) {
                     name: prod.name,
                     brand: prod.brand,
                     image_url: prod.image_url,
+                    is_verified: prod.is_verified,
+                    certification: prod.certification,
                     type: prod.type || null,
                     animal_type: pf.animal_type || null,
                     food_type: pf.food_type || null,
                     scores: filteredScores,
                     moisture_percent: pf?.moisture_percent ?? null,
                     analytical_composition: pf?.analytical_composition ?? null,
-
                 };
             });
 
@@ -328,7 +351,7 @@ module.exports = function (app, router) {
                     return res.status(404).json({ error: "Produit introuvable" });
                 }
 
-                // 🧹 Supprimer les entrées dans l’historique de recherche
+                // 🧹 Supprimer les entrées dans l'historique de recherche
                 await SearchHistoryItem.destroy({
                     where: { product_id: id },
                     transaction,
@@ -383,6 +406,13 @@ module.exports = function (app, router) {
                     continue;
                 }
 
+                // Validation certification
+                const certValidation = validateCertification(data.is_verified, data.certification);
+                if (!certValidation.valid) {
+                    skipped.push({ index: i, code_ean: data.code_ean, reason: certValidation.error });
+                    continue;
+                }
+
                 // Vérifie si le produit existe déjà
                 const existing = await Product.findOne({ where: { code_ean: data.code_ean }, transaction: t });
                 if (existing) {
@@ -408,6 +438,7 @@ module.exports = function (app, router) {
                         brand: data.brand,
                         image_url: data.image_url,
                         is_verified: data.is_verified ?? false,
+                        certification: data.certification ?? null,
                         type_id: productType.id,
                     },
                     { transaction: t }
@@ -486,7 +517,7 @@ module.exports = function (app, router) {
             console.log(`🧠 [Route][${rid}] Not in DB, running analysis...`);
             const analysis = await analyzeProductBarcode(barcode, rid);
 
-            // 3) Si l’analyse n’est pas OK : on renvoie directement
+            // 3) Si l'analyse n'est pas OK : on renvoie directement
             if (!analysis || analysis.status !== "ok") {
                 console.log(`ℹ️ [Route][${rid}] Analysis finished with status=${analysis?.status}`);
                 return res.status(200).json(analysis || { status: "not_found" });
@@ -506,8 +537,11 @@ module.exports = function (app, router) {
                 });
             }
 
-            // 5) Insert DB
             console.log(`💾 [Route][${rid}] Analysis OK, creating product...`);
+            
+            analysis.is_verified = false;
+            analysis.certification = null;
+            
             const created = await createProductFromPayload(analysis, { allowExisting: true });
 
             // created.status = created | already_exists

@@ -21,6 +21,10 @@ const Product = sequelize.define(
             allowNull: false,
             defaultValue: false,
         },
+        certification: {
+            type: DataTypes.TEXT,
+            allowNull: true,
+        },
         image_url: {
             type: DataTypes.TEXT,
             allowNull: true,
@@ -45,6 +49,13 @@ const Product = sequelize.define(
                 name: 'products_code_ean_uq',
             },
         ],
+        validate: {
+            certificationRequiredIfVerified() {
+                if (this.is_verified && !this.certification) {
+                    throw new Error('La certification est requise pour un produit vérifié.');
+                }
+            },
+        },
     }
 );
 
