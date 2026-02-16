@@ -13,6 +13,12 @@ const ProductType = sequelize.define(
             allowNull: false,
             unique: true,
         },
+        icon_name: {
+            type: DataTypes.STRING(100),
+            allowNull: true,
+            defaultValue: null,
+            comment: "Icon identifier used by the frontend to map to a local asset",
+        },
     },
     {
         timestamps: false,

@@ -39,6 +39,24 @@ function validateCertification(isVerified, certification) {
 module.exports = function (app, router) {
 
     /**
+     * Route GET /product-types
+     * Récupère tous les types de produits disponibles.
+     */
+    router.get("/product-types", async (req, res) => {
+        try {
+            const productTypes = await ProductType.findAll({
+                attributes: ["id", "code", "name", "icon_name"],
+                order: [["name", "ASC"]],
+            });
+
+            return res.json(productTypes);
+        } catch (err) {
+            console.error("❌ Erreur GET /product-types:", err);
+            return res.status(500).json({ error: "Erreur serveur lors de la récupération des types de produits" });
+        }
+    });
+
+    /**
      * Route POST /products
      * Crée un nouveau Product et l'enregistrement ProductFood associé en utilisant une transaction.
      */
@@ -152,6 +170,162 @@ module.exports = function (app, router) {
         } catch (error) {
             console.error("❌ Erreur GET /products/ean/:code_ean:", error);
             return res.status(500).json({ error: "Erreur interne" });
+        }
+    });
+
+    /**
+     * Route GET /products/search
+     * Recherche des produits par nom, marque ou ingrédient.
+     * Query params : q (terme de recherche), animal_type, food_type
+     */
+    router.get("/products/search", async (req, res) => {
+        try {
+            const { q, animal_type, food_type, product_type_code } = req.query;
+
+            if (!q && !product_type_code) {
+                return res.status(400).json({ error: "Le paramètre de recherche 'q' ou 'product_type_code' est requis" });
+            }
+
+            const searchTerm = q ? `%${q.trim()}%` : null;
+
+            // Construction du filtre ProductType
+            const productTypeInclude = {
+                model: ProductType,
+                as: "type",
+                attributes: ["id", "code", "name"],
+                required: !!product_type_code,
+            };
+            if (product_type_code) {
+                productTypeInclude.where = { code: product_type_code };
+            }
+
+            // Construction du filtre ProductFood (animal_type / food_type)
+            const productFoodInclude = {
+                model: ProductFood,
+                as: "product_foods",
+                attributes: ["scores", "analytical_composition", "moisture_percent", "ingredients"],
+                include: [],
+                where: {},
+            };
+
+            // Recherche dans les ingrédients via ProductFood
+            productFoodInclude.where = {
+                ...productFoodInclude.where,
+            };
+
+            if (animal_type) {
+                productFoodInclude.include.push({
+                    model: AnimalType,
+                    as: "animal_type",
+                    where: { code: animal_type },
+                    attributes: ["id", "code", "name"],
+                    required: true,
+                });
+            } else {
+                productFoodInclude.include.push({
+                    model: AnimalType,
+                    as: "animal_type",
+                    attributes: ["id", "code", "name"],
+                    required: false,
+                });
+            }
+
+            if (food_type) {
+                productFoodInclude.include.push({
+                    model: FoodType,
+                    as: "food_type",
+                    where: { code: food_type },
+                    attributes: ["id", "code", "name"],
+                    required: true,
+                });
+            } else {
+                productFoodInclude.include.push({
+                    model: FoodType,
+                    as: "food_type",
+                    attributes: ["id", "code", "name"],
+                    required: false,
+                });
+            }
+
+            // Construction du WHERE sur Product
+            const productWhere = {};
+            if (searchTerm) {
+                productWhere[Op.or] = [
+                    { name: { [Op.iLike]: searchTerm } },
+                    { brand: { [Op.iLike]: searchTerm } },
+                ];
+            }
+
+            const products = await Product.findAll({
+                attributes: ["id", "name", "brand", "image_url", "is_verified", "certification"],
+                where: Object.keys(productWhere).length > 0 ? productWhere : undefined,
+                include: [
+                    productFoodInclude,
+                    productTypeInclude,
+                ],
+            });
+
+            // Recherche aussi par ingrédient (produits non encore trouvés par nom/marque)
+            let productsByIngredient = [];
+            if (searchTerm) {
+                productsByIngredient = await Product.findAll({
+                    attributes: ["id", "name", "brand", "image_url", "is_verified", "certification"],
+                    include: [
+                        {
+                            ...productFoodInclude,
+                            where: {
+                                ...productFoodInclude.where,
+                                ingredients: { [Op.iLike]: searchTerm },
+                            },
+                            required: true,
+                        },
+                        productTypeInclude,
+                    ],
+                });
+            }
+
+            // Fusionner et dédoublonner par id
+            const mergedMap = new Map();
+            for (const p of [...products, ...productsByIngredient]) {
+                if (!mergedMap.has(p.id)) {
+                    mergedMap.set(p.id, p);
+                }
+            }
+
+            const allProducts = Array.from(mergedMap.values());
+
+            // Filtrer les produits sans ProductFood si un filtre est appliqué
+            const filteredProducts = allProducts.filter(p => p.product_foods.length > 0);
+
+            // Transformer scores pour ne garder que pt et pct (même format que GET /products)
+            const lightProducts = filteredProducts.map(prod => {
+                const pf = prod.product_foods[0];
+                const scoresRaw = pf?.scores || {};
+                const filteredScores = {};
+                for (const [key, value] of Object.entries(scoresRaw)) {
+                    filteredScores[key] = { pt: value.pt, pct: value.pct };
+                }
+
+                return {
+                    id: prod.id,
+                    name: prod.name,
+                    brand: prod.brand,
+                    image_url: prod.image_url,
+                    is_verified: prod.is_verified,
+                    certification: prod.certification,
+                    type: prod.type || null,
+                    animal_type: pf.animal_type || null,
+                    food_type: pf.food_type || null,
+                    scores: filteredScores,
+                    moisture_percent: pf?.moisture_percent ?? null,
+                    analytical_composition: pf?.analytical_composition ?? null,
+                };
+            });
+
+            return res.json(lightProducts);
+        } catch (err) {
+            console.error("❌ Erreur GET /products/search:", err);
+            return res.status(500).json({ error: "Erreur serveur lors de la recherche" });
         }
     });
 
@@ -538,10 +712,10 @@ module.exports = function (app, router) {
             }
 
             console.log(`💾 [Route][${rid}] Analysis OK, creating product...`);
-            
+
             analysis.is_verified = false;
             analysis.certification = null;
-            
+
             const created = await createProductFromPayload(analysis, { allowExisting: true });
 
             // created.status = created | already_exists
