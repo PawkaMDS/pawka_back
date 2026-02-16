@@ -199,22 +199,11 @@ module.exports = function (app, router) {
                 productTypeInclude.where = { code: product_type_code };
             }
 
-            // Construction du filtre ProductFood (animal_type / food_type)
-            const productFoodInclude = {
-                model: ProductFood,
-                as: "product_foods",
-                attributes: ["scores", "analytical_composition", "moisture_percent", "ingredients"],
-                include: [],
-                where: {},
-            };
-
-            // Recherche dans les ingrédients via ProductFood
-            productFoodInclude.where = {
-                ...productFoodInclude.where,
-            };
+            // Construction des includes imbriqués pour ProductFood
+            const productFoodNestedIncludes = [];
 
             if (animal_type) {
-                productFoodInclude.include.push({
+                productFoodNestedIncludes.push({
                     model: AnimalType,
                     as: "animal_type",
                     where: { code: animal_type },
@@ -222,7 +211,7 @@ module.exports = function (app, router) {
                     required: true,
                 });
             } else {
-                productFoodInclude.include.push({
+                productFoodNestedIncludes.push({
                     model: AnimalType,
                     as: "animal_type",
                     attributes: ["id", "code", "name"],
@@ -231,7 +220,7 @@ module.exports = function (app, router) {
             }
 
             if (food_type) {
-                productFoodInclude.include.push({
+                productFoodNestedIncludes.push({
                     model: FoodType,
                     as: "food_type",
                     where: { code: food_type },
@@ -239,7 +228,7 @@ module.exports = function (app, router) {
                     required: true,
                 });
             } else {
-                productFoodInclude.include.push({
+                productFoodNestedIncludes.push({
                     model: FoodType,
                     as: "food_type",
                     attributes: ["id", "code", "name"],
@@ -247,36 +236,68 @@ module.exports = function (app, router) {
                 });
             }
 
-            // Construction du WHERE sur Product
-            const productWhere = {};
-            if (searchTerm) {
-                productWhere[Op.or] = [
-                    { name: { [Op.iLike]: searchTerm } },
-                    { brand: { [Op.iLike]: searchTerm } },
-                ];
-            }
+            let allProducts = [];
 
-            const products = await Product.findAll({
-                attributes: ["id", "name", "brand", "image_url", "is_verified", "certification"],
-                where: Object.keys(productWhere).length > 0 ? productWhere : undefined,
-                include: [
-                    productFoodInclude,
-                    productTypeInclude,
-                ],
-            });
-
-            // Recherche aussi par ingrédient (produits non encore trouvés par nom/marque)
-            let productsByIngredient = [];
+            // Si on a un terme de recherche, on fait 2 requêtes séparées
             if (searchTerm) {
-                productsByIngredient = await Product.findAll({
+                // Requête 1 : Recherche dans nom et marque du produit
+                const productsByNameOrBrand = await Product.findAll({
+                    attributes: ["id", "name", "brand", "image_url", "is_verified", "certification"],
+                    where: {
+                        [Op.or]: [
+                            { name: { [Op.iLike]: searchTerm } },
+                            { brand: { [Op.iLike]: searchTerm } },
+                        ],
+                    },
+                    include: [
+                        {
+                            model: ProductFood,
+                            as: "product_foods",
+                            attributes: ["scores", "analytical_composition", "moisture_percent", "ingredients"],
+                            include: productFoodNestedIncludes,
+                            required: true,
+                        },
+                        productTypeInclude,
+                    ],
+                });
+
+                // Requête 2 : Recherche dans les ingrédients
+                const productsByIngredients = await Product.findAll({
                     attributes: ["id", "name", "brand", "image_url", "is_verified", "certification"],
                     include: [
                         {
-                            ...productFoodInclude,
+                            model: ProductFood,
+                            as: "product_foods",
+                            attributes: ["scores", "analytical_composition", "moisture_percent", "ingredients"],
                             where: {
-                                ...productFoodInclude.where,
                                 ingredients: { [Op.iLike]: searchTerm },
                             },
+                            include: productFoodNestedIncludes,
+                            required: true,
+                        },
+                        productTypeInclude,
+                    ],
+                });
+
+                // Fusionner et dédoublonner
+                const productMap = new Map();
+                for (const p of [...productsByNameOrBrand, ...productsByIngredients]) {
+                    if (!productMap.has(p.id)) {
+                        productMap.set(p.id, p);
+                    }
+                }
+                allProducts = Array.from(productMap.values());
+
+            } else {
+                // Pas de recherche textuelle, juste le filtre par type
+                allProducts = await Product.findAll({
+                    attributes: ["id", "name", "brand", "image_url", "is_verified", "certification"],
+                    include: [
+                        {
+                            model: ProductFood,
+                            as: "product_foods",
+                            attributes: ["scores", "analytical_composition", "moisture_percent", "ingredients"],
+                            include: productFoodNestedIncludes,
                             required: true,
                         },
                         productTypeInclude,
@@ -284,18 +305,19 @@ module.exports = function (app, router) {
                 });
             }
 
-            // Fusionner et dédoublonner par id
-            const mergedMap = new Map();
-            for (const p of [...products, ...productsByIngredient]) {
-                if (!mergedMap.has(p.id)) {
-                    mergedMap.set(p.id, p);
-                }
+            // Debug: Log des résultats
+            if (searchTerm) {
+                console.log(`🔎 Recherche pour: "${q.trim()}" -> ${allProducts.length} résultats`);
+                allProducts.forEach(p => {
+                    const matchInName = p.name?.toLowerCase().includes(q.trim().toLowerCase());
+                    const matchInBrand = p.brand?.toLowerCase().includes(q.trim().toLowerCase());
+                    const matchInIngredients = p.product_foods[0]?.ingredients?.toLowerCase().includes(q.trim().toLowerCase());
+                    const matchType = matchInBrand ? '📦 MARQUE' : matchInName ? '📝 NOM' : matchInIngredients ? '🥫 INGRÉDIENT' : '❓';
+                    console.log(`  - [${p.id}] ${matchType} ${p.name} (${p.brand || 'sans marque'})`);
+                });
             }
 
-            const allProducts = Array.from(mergedMap.values());
-
-            // Filtrer les produits sans ProductFood si un filtre est appliqué
-            const filteredProducts = allProducts.filter(p => p.product_foods.length > 0);
+            const filteredProducts = allProducts;
 
             // Transformer scores pour ne garder que pt et pct (même format que GET /products)
             const lightProducts = filteredProducts.map(prod => {
