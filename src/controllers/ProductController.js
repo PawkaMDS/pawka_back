@@ -39,6 +39,24 @@ function validateCertification(isVerified, certification) {
 module.exports = function (app, router) {
 
     /**
+     * Route GET /product-types
+     * Récupère tous les types de produits disponibles.
+     */
+    router.get("/product-types", async (req, res) => {
+        try {
+            const productTypes = await ProductType.findAll({
+                attributes: ["id", "code", "name"],
+                order: [["name", "ASC"]],
+            });
+
+            return res.json(productTypes);
+        } catch (err) {
+            console.error("❌ Erreur GET /product-types:", err);
+            return res.status(500).json({ error: "Erreur serveur lors de la récupération des types de produits" });
+        }
+    });
+
+    /**
      * Route POST /products
      * Crée un nouveau Product et l'enregistrement ProductFood associé en utilisant une transaction.
      */
