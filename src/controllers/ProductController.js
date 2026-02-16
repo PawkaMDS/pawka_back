@@ -45,7 +45,7 @@ module.exports = function (app, router) {
     router.get("/product-types", async (req, res) => {
         try {
             const productTypes = await ProductType.findAll({
-                attributes: ["id", "code", "name"],
+                attributes: ["id", "code", "name", "icon_name"],
                 order: [["name", "ASC"]],
             });
 
@@ -180,13 +180,24 @@ module.exports = function (app, router) {
      */
     router.get("/products/search", async (req, res) => {
         try {
-            const { q, animal_type, food_type } = req.query;
+            const { q, animal_type, food_type, product_type_code } = req.query;
 
-            if (!q || q.trim().length === 0) {
-                return res.status(400).json({ error: "Le paramètre de recherche 'q' est requis" });
+            if (!q && !product_type_code) {
+                return res.status(400).json({ error: "Le paramètre de recherche 'q' ou 'product_type_code' est requis" });
             }
 
-            const searchTerm = `%${q.trim()}%`;
+            const searchTerm = q ? `%${q.trim()}%` : null;
+
+            // Construction du filtre ProductType
+            const productTypeInclude = {
+                model: ProductType,
+                as: "type",
+                attributes: ["id", "code", "name"],
+                required: !!product_type_code,
+            };
+            if (product_type_code) {
+                productTypeInclude.where = { code: product_type_code };
+            }
 
             // Construction du filtre ProductFood (animal_type / food_type)
             const productFoodInclude = {
@@ -236,45 +247,42 @@ module.exports = function (app, router) {
                 });
             }
 
+            // Construction du WHERE sur Product
+            const productWhere = {};
+            if (searchTerm) {
+                productWhere[Op.or] = [
+                    { name: { [Op.iLike]: searchTerm } },
+                    { brand: { [Op.iLike]: searchTerm } },
+                ];
+            }
+
             const products = await Product.findAll({
                 attributes: ["id", "name", "brand", "image_url", "is_verified", "certification"],
-                where: {
-                    [Op.or]: [
-                        { name: { [Op.iLike]: searchTerm } },
-                        { brand: { [Op.iLike]: searchTerm } },
-                    ],
-                },
+                where: Object.keys(productWhere).length > 0 ? productWhere : undefined,
                 include: [
                     productFoodInclude,
-                    {
-                        model: ProductType,
-                        as: "type",
-                        attributes: ["id", "code", "name"],
-                        required: false,
-                    },
+                    productTypeInclude,
                 ],
             });
 
-            // Recherche aussi par ingrédient (produits non encore trouvés)
-            const productsByIngredient = await Product.findAll({
-                attributes: ["id", "name", "brand", "image_url", "is_verified", "certification"],
-                include: [
-                    {
-                        ...productFoodInclude,
-                        where: {
-                            ...productFoodInclude.where,
-                            ingredients: { [Op.iLike]: searchTerm },
+            // Recherche aussi par ingrédient (produits non encore trouvés par nom/marque)
+            let productsByIngredient = [];
+            if (searchTerm) {
+                productsByIngredient = await Product.findAll({
+                    attributes: ["id", "name", "brand", "image_url", "is_verified", "certification"],
+                    include: [
+                        {
+                            ...productFoodInclude,
+                            where: {
+                                ...productFoodInclude.where,
+                                ingredients: { [Op.iLike]: searchTerm },
+                            },
+                            required: true,
                         },
-                        required: true,
-                    },
-                    {
-                        model: ProductType,
-                        as: "type",
-                        attributes: ["id", "code", "name"],
-                        required: false,
-                    },
-                ],
-            });
+                        productTypeInclude,
+                    ],
+                });
+            }
 
             // Fusionner et dédoublonner par id
             const mergedMap = new Map();
