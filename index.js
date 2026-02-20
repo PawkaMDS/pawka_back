@@ -40,7 +40,7 @@ app.use((error, req, res, next) => {
     await sequelize.authenticate();
 
     // Sync the DB
-    // await sequelize.sync({ alter: true });
+    await sequelize.sync({ alter: true });
 
     // Seed the DB (if needed)
     // const seedAll = require("./src/seeds");
