@@ -132,4 +132,4 @@ async function createProductFromPayload(data, { allowExisting = true } = {}) {
     }
 }
 
-module.exports = { createProductFromPayload };
+module.exports = { createProductFromPayload, calculateTotalScore };

@@ -11,7 +11,7 @@ const SearchHistoryItem = require("../models/SearchHistoryItem");
 const requireRoles = require("../middlewares/require-role");
 const requireAuthentication = require("../middlewares/require-auth");
 const User = require("../models/User");
-const { createProductFromPayload } = require("../services/productCreateService");
+const { createProductFromPayload, calculateTotalScore } = require("../services/productCreateService");
 const { analyzeProductBarcode } = require("../services/productAnalysisService");
 
 /**
@@ -666,6 +666,7 @@ module.exports = function (app, router) {
                         has_beneficial_additives: data.has_beneficial_additives ?? false,
                         sources: data.sources ?? null,
                         score_version: data.score_version ?? "1.0.0",
+                        total_score: data.total_score ?? calculateTotalScore(data.scores),
                     },
                     { transaction: t }
                 );
