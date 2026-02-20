@@ -353,6 +353,109 @@ module.exports = function (app, router) {
     });
 
     /**
+     * Route GET /products/:productId/alternatives
+     * Récupère les alternatives plus saines pour un produit scanné
+     * Les infos du produit scanné (animal type, stérilisation, score) sont récupérées automatiquement
+     */
+    router.get("/products/:productId/alternatives", requireAuthentication, async (req, res) => {
+        try {
+            const { productId } = req.params;
+
+            if (!productId) {
+                return res.status(400).json({
+                    error: "Le productId est requis",
+                });
+            }
+
+            // Récupérer le produit original avec son ProductFood
+            const originalProduct = await Product.findByPk(productId, {
+                include: [
+                    {
+                        model: ProductFood,
+                        as: "product_foods",
+                        attributes: ["animal_type_id", "is_for_sterilised", "total_score"],
+                    },
+                ],
+            });
+
+            if (!originalProduct || !originalProduct.product_foods || originalProduct.product_foods.length === 0) {
+                return res.status(404).json({ error: "Produit original ou analyse introuvable" });
+            }
+
+            // Extraire les infos du produit scanné
+            const productFood = originalProduct.product_foods[0];
+            const animalTypeId = productFood.animal_type_id;
+            const isForSterilised = productFood.is_for_sterilised;
+            const currentScore = productFood.total_score;
+
+            console.log(`🔍 Produit ${productId}:`, {
+                name: originalProduct.name,
+                animalTypeId,
+                isForSterilised,
+                currentScore,
+                productFood: productFood
+            });
+
+            if (!currentScore) {
+                return res.status(400).json({ 
+                    error: "Le produit n'a pas encore été analysé",
+                    debug: {
+                        productId,
+                        productFood: productFood
+                    }
+                });
+            }
+
+            // Rechercher les alternatives avec une requête SQL brute
+            const alternatives = await sequelize.query(
+                `SELECT p.id, p.code_ean, p.name, p.brand, p.image_url, pf.total_score
+                 FROM products p
+                 INNER JOIN product_foods pf ON p.id = pf.product_id
+                 WHERE pf.animal_type_id = :animalTypeId
+                   AND pf.is_for_sterilised = :isForSterilised
+                   AND pf.total_score > :currentScore
+                 ORDER BY pf.total_score DESC
+                 LIMIT 10`,
+                {
+                    replacements: { animalTypeId, isForSterilised, currentScore },
+                    type: sequelize.QueryTypes.SELECT,
+                }
+            );
+
+            // Mapper les résultats
+            const sortedAlternatives = alternatives;
+
+            // Vérifier s'il y a des alternatives
+            if (!sortedAlternatives || sortedAlternatives.length === 0) {
+                return res.status(200).json({
+                    message: "Aucune alternative plus saine pour ce produit",
+                    alternatives: [],
+                });
+            }
+
+            // Formater la réponse
+            const formattedAlternatives = sortedAlternatives.map((alt) => ({
+                id: alt.id,
+                code_ean: alt.code_ean,
+                name: alt.name,
+                brand: alt.brand,
+                image: alt.image_url,
+                score_total: alt.total_score,
+            }));
+
+            return res.status(200).json({
+                message: `${formattedAlternatives.length} alternative(s) trouvée(s)`,
+                alternatives: formattedAlternatives,
+            });
+        } catch (error) {
+            console.error("❌ Erreur GET /products/:productId/alternatives:", error);
+            return res.status(error.statusCode || 500).json({
+                error: error.message || "Erreur lors de la récupération des alternatives",
+            });
+        }
+    });
+
+    /**
      * Route GET /products/:id
      * Récupère un produit par son id avec ses relations et creer dans History
      * une nouvelle entrée.
