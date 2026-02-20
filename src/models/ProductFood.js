@@ -93,6 +93,12 @@ const ProductFood = sequelize.define(
             allowNull: true,
             comment: "Version of the scoring algorithm used for analysis",
         },
+        total_score: {
+            type: DataTypes.INTEGER,
+            allowNull: true,
+            defaultValue: null,
+            comment: "Overall score for this product, for this animal",
+        },
     },
     {
         timestamps: false,

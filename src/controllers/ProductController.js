@@ -253,7 +253,7 @@ module.exports = function (app, router) {
                         {
                             model: ProductFood,
                             as: "product_foods",
-                            attributes: ["scores", "analytical_composition", "moisture_percent", "ingredients"],
+                            attributes: ["scores", "analytical_composition", "moisture_percent", "ingredients", "total_score"],
                             include: productFoodNestedIncludes,
                             required: true,
                         },
@@ -268,7 +268,7 @@ module.exports = function (app, router) {
                         {
                             model: ProductFood,
                             as: "product_foods",
-                            attributes: ["scores", "analytical_composition", "moisture_percent", "ingredients"],
+                            attributes: ["scores", "analytical_composition", "moisture_percent", "ingredients", "total_score"],
                             where: {
                                 ingredients: { [Op.iLike]: searchTerm },
                             },
@@ -296,7 +296,7 @@ module.exports = function (app, router) {
                         {
                             model: ProductFood,
                             as: "product_foods",
-                            attributes: ["scores", "analytical_composition", "moisture_percent", "ingredients"],
+                            attributes: ["scores", "analytical_composition", "moisture_percent", "ingredients", "total_score"],
                             include: productFoodNestedIncludes,
                             required: true,
                         },
@@ -341,6 +341,7 @@ module.exports = function (app, router) {
                     scores: filteredScores,
                     moisture_percent: pf?.moisture_percent ?? null,
                     analytical_composition: pf?.analytical_composition ?? null,
+                    total_score: pf?.total_score ?? null,
                 };
             });
 
@@ -429,7 +430,7 @@ module.exports = function (app, router) {
             const productFoodInclude = {
                 model: ProductFood,
                 as: "product_foods",
-                attributes: ["scores", "analytical_composition", "moisture_percent"],
+                attributes: ["scores", "analytical_composition", "moisture_percent", "total_score"],
                 include: []
             };
 
@@ -505,6 +506,7 @@ module.exports = function (app, router) {
                     scores: filteredScores,
                     moisture_percent: pf?.moisture_percent ?? null,
                     analytical_composition: pf?.analytical_composition ?? null,
+                    total_score: pf?.total_score ?? null,
                 };
             });
 

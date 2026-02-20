@@ -2,6 +2,35 @@
 const { Product, ProductFood, ProductType, AnimalType, FoodType } = require("../models");
 const sequelize = require("../utils/sequelize");
 
+/**
+ * Calcule le score total (0-100) à partir du JSON scores
+ */
+function calculateTotalScore(scores) {
+    if (!scores) return null;
+
+    const keys = [
+        "protein_content",
+        "fat_content",
+        "carbohydrate_content",
+        "fiber_content",
+        "ingredient_quality",
+        "protein_source_quality",
+        "byproducts_presence",
+        "chemical_additives",
+        "beneficial_additives",
+    ];
+
+    let total = 0;
+    for (const k of keys) {
+        const pt = scores?.[k]?.pt;
+        if (typeof pt !== "number") return null;
+        total += pt;
+    }
+
+    const rounded = Math.round(total);
+    return Math.max(0, Math.min(100, rounded));
+}
+
 async function createProductFromPayload(data, { allowExisting = true } = {}) {
     const t = await sequelize.transaction();
 
@@ -73,6 +102,7 @@ async function createProductFromPayload(data, { allowExisting = true } = {}) {
                 has_beneficial_additives: data.has_beneficial_additives ?? null,
                 sources: data.sources ?? null,
                 score_version: data.score_version ?? "0.0.2",
+                total_score: data.total_score ?? calculateTotalScore(data.scores),
             },
             { transaction: t }
         );
