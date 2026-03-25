@@ -325,7 +325,7 @@ module.exports = function (app, router) {
                 const scoresRaw = pf?.scores || {};
                 const filteredScores = {};
                 for (const [key, value] of Object.entries(scoresRaw)) {
-                    filteredScores[key] = { pt: value.pt, pct: value.pct };
+                    filteredScores[key] = { pt: value?.pt ?? null, pct: value?.pct ?? null };
                 }
 
                 return {
@@ -593,7 +593,7 @@ module.exports = function (app, router) {
                 const scoresRaw = pf?.scores || {};
                 const filteredScores = {};
                 for (const [key, value] of Object.entries(scoresRaw)) {
-                    filteredScores[key] = { pt: value.pt, pct: value.pct };
+                    filteredScores[key] = { pt: value?.pt ?? null, pct: value?.pct ?? null };
                 }
 
                 return {
